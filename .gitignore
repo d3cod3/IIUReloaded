@@ -30,9 +30,9 @@ Desktop.ini
 *.app
 *.dSYM
 *.pyc
-bin/data/
+bin/data/videos/
 IIUReloaded/bin/.tmp
 bin/.tmp
 obj/
-**/build-IIUReloaded_example-Desktop-Debug
-**/build-IIUReloaded_example-Desktop-Release
+**/build-IIUReloaded-Desktop-Debug
+**/build-IIUReloaded-Desktop-Release
