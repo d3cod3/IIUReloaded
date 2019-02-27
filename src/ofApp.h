@@ -12,7 +12,6 @@
 #include "ofxGui.h"
 #include "ofxEasyFboGlitch.h"
 #include "ofxTrueTypeFontUC.h"
-#include "ofxSoundPlayerMultiOutput.h"
 #include "ofxWarp.h"
 
 #include "config.h"
@@ -35,12 +34,18 @@ public:
     void mousePressedMovingWindow(ofMouseEventArgs &e);
     void mouseReleasedMovingWindow(ofMouseEventArgs &e);
 
-    void audioOut(ofSoundBuffer & buffer);
+    void audioOut(ofSoundBuffer &outBuffer);
 
     void initAppDataFolder();
     void motionDetection();
     void serialRead();
     void sleepCountdown();
+
+    void drawNumeros();
+    void drawPalabras();
+    void drawCuadrados();
+
+    void playRandomCampana();
 
     void keyPressed(int key);
     void keyReleased(int key);
@@ -70,6 +75,7 @@ public:
     bool                        isSecondaryFullscreen;
     float                       displacementX;
     int                         generativeState;
+    int                         actualQuadrant;
 
     // ---------------------------------------------- VIDEO
     ofVideoPlayer               *mainVideo;
@@ -81,13 +87,20 @@ public:
 
     // ---------------------------------------------- AUDIO
     ofSoundStream               soundStream;
+    ofSoundBuffer               lastBuffer;
+    ofSoundBuffer               monoBuffer;
+    std::mutex                  audioMutex;
+    bool                        soundStreamInited;
 
-    float                       volume1, volume2, volume3, volume4;
-
-    vector <float>              ch1Audio;
-    vector <float>              ch2Audio;
-    vector <float>              ch3Audio;
-    vector <float>              ch4Audio;
+    ofxAudioFile                baseAudioFile;
+    double                      base_playhead;
+    double                      base_step;
+    float                       base_volume;
+    ofxAudioFile                campana;
+    double                      campana_playhead;
+    double                      campana_step;
+    bool                        play_campana;
+    int                         randomCHCamapana;
 
     // ---------------------------------------------- GENERATIVE
     vector<string>              words;

@@ -58,6 +58,7 @@ void ofApp::setup(){
     isSecondaryWinLoaded    = false;
     generativeState         = 0;
     displacementX           = 0;
+    actualQuadrant          = 0;
 
     // ---------------------------------------------- VIDEO
     mainVideo               = new ofVideoPlayer();
@@ -67,9 +68,9 @@ void ofApp::setup(){
     colorCorrection         = new ofShader();
     warpManager             = new ofxWarpController();
 
-    //mainVideo->load("videos/videoMatrox.mov");
-    //mainVideo->setLoopState(OF_LOOP_NORMAL);
-    //mainVideo->play();
+    mainVideo->load("videos/videoMatrox.mov");
+    mainVideo->setLoopState(OF_LOOP_NORMAL);
+    mainVideo->play();
 
     rgb->load("videos/rgb.jpg");
     finalTexture->allocate(MAIN_SCREEN_W,MAIN_SCREEN_H,GL_RGBA,2);
@@ -86,6 +87,33 @@ void ofApp::setup(){
     movingWarpManager->loadSettings("videos/movingWarpingSetting.json");
 
     // ---------------------------------------------- AUDIO
+    soundStreamInited = false;
+    soundStream.printDeviceList();
+    int audioDeviceID = 0;
+    /*ofSoundStreamSettings audioSettings;
+    audioSettings.numOutputChannels = AUDIO_NUM_OUT_CHANNELS;
+    audioSettings.sampleRate = AUDIO_SAMPLE_RATE;
+    audioSettings.bufferSize = AUDIO_BUFFER_SIZE;
+    audioSettings.numBuffers = AUDIO_NUM_BUFFER;
+    audioSettings.setOutDevice(soundStream.getDeviceList().at(audioDeviceID));
+    audioSettings.setOutListener(this);
+    soundStream.setup(audioSettings);*/
+
+    //soundStream.setDeviceID(audioDeviceID);
+    //soundStreamInited = soundStream.setup(AUDIO_NUM_OUT_CHANNELS,AUDIO_NUM_IN_CHANNELS,AUDIO_SAMPLE_RATE,AUDIO_BUFFER_SIZE,AUDIO_NUM_BUFFER);
+
+    baseAudioFile.load("videos/baseSound.aiff");
+    base_playhead   = std::numeric_limits<int>::max();
+    base_step       = baseAudioFile.samplerate() / AUDIO_SAMPLE_RATE;
+    base_volume     = 1.0f;
+    base_playhead   = 0.0;
+
+    campana.load("videos/campana.aiff");
+    campana_playhead    = std::numeric_limits<int>::max();
+    campana_step        = campana.samplerate() / AUDIO_SAMPLE_RATE;
+    campana_playhead    = 0.0;
+    play_campana        = false;
+    randomCHCamapana    = 0;
 
     // ---------------------------------------------- GENERATIVE
     words = {"facultad", "universidad", "democracia", "Valencia", "reunión", "lucha", "coordinadora", "derecho", "estudiantes", "protesta", "declaración", "gobierno", "organización", "sindical", "delegado", "brigada", "sociales", "policía", "representantes", "compañeras", "tensión", "libertad", "cultura", "reforma", "desarrollo", "trabajador", "intelectual", "becas", "ponencia", "coordinación", "autonomía", "institución", "distritos", "flexibilidad", "asamblea", "delegadas", "activista", "grises", "resistencia", "poesía"};
@@ -148,7 +176,57 @@ void ofApp::setup(){
 //--------------------------------------------------------------
 void ofApp::update(){
 
-    //mainVideo->update();
+    // --------------------------------------------------- GENERATIVE
+    if(!isSystemSleeping){
+        mainVideo->update();
+        ofSoundUpdate();
+        // SYNC main audio WITH main video
+        if(mainVideo->getCurrentFrame()==1){
+            base_playhead = 0.0;
+        }
+
+        if(actualQuadrant != 0 && actualQuadrant != 4){
+            if(mainVideo->getCurrentFrame() >= 0 && mainVideo->getCurrentFrame() < 1618){
+                generativeState = 1; // numeros
+            }else if(mainVideo->getCurrentFrame() >= 1618 && mainVideo->getCurrentFrame() < 5618){
+                if(actualQuadrant == 1){
+                    generativeState = 3; // cuadrados
+                }else if(actualQuadrant == 2){
+                    generativeState = 2; // palabras
+                }else if(actualQuadrant == 3){
+                    generativeState = 1; // numeros
+                }
+            }else if(mainVideo->getCurrentFrame() >= 5618 && mainVideo->getCurrentFrame() < 6395){
+                generativeState = 2; // palabras
+            }else if(mainVideo->getCurrentFrame() >= 6395 && mainVideo->getCurrentFrame() < 10285){
+                if(actualQuadrant == 1){
+                    generativeState = 1; // numeros
+                }else if(actualQuadrant == 2){
+                    generativeState = 3; // cuadrados
+                }else if(actualQuadrant == 3){
+                    generativeState = 2; // palabras
+                }
+            }else if(mainVideo->getCurrentFrame() >= 10285 && mainVideo->getCurrentFrame() < 11755){
+                generativeState = 3; // cuadrados
+            }else if(mainVideo->getCurrentFrame() >= 11755 && mainVideo->getCurrentFrame() < 15751){
+                if(actualQuadrant == 1){
+                    generativeState = 2; // palabras
+                }else if(actualQuadrant == 2){
+                    generativeState = 1; // numeros
+                }else if(actualQuadrant == 3){
+                    generativeState = 3; // cuadrados
+                }
+            }
+
+        }else{
+            generativeState = 0; // void
+        }
+    }else{
+        generativeState = 0; // void
+    }
+
+
+
 
     // --------------------------------------------------- Motion Detection (webcam as activation sensor)
     motionDetection();
@@ -181,8 +259,7 @@ void ofApp::draw(){
         rgb->draw(0,0,MAIN_SCREEN_W,MAIN_SCREEN_H);
     }else{
         ofSetColor(255);
-        rgb->draw(0,0,MAIN_SCREEN_W,MAIN_SCREEN_H);
-        //mainVideo->draw(0,0,MAIN_SCREEN_W,MAIN_SCREEN_H);
+        mainVideo->draw(0,0,MAIN_SCREEN_W,MAIN_SCREEN_H);
     }
     finalTexture->end();
 
@@ -230,8 +307,71 @@ void ofApp::exit(){
 }
 
 //--------------------------------------------------------------
-void ofApp::audioOut(ofSoundBuffer & buffer){
+void ofApp::playRandomCampana(){
+    campana_playhead    = 0.0;
+    randomCHCamapana = static_cast<int>(floor(ofRandom(0,3)));
+    play_campana = true;
+}
 
+//--------------------------------------------------------------
+void ofApp::audioOut(ofSoundBuffer &outBuffer){
+    if(soundStreamInited){
+        for(size_t i = 0; i < outBuffer.getNumFrames(); i++) {
+
+            if(baseAudioFile.loaded() && campana.loaded() && !isSystemSleeping && mainVideo->isPlaying()){
+
+                // BASE SOUNDFILE (Channels 3 & 4)
+                int base_n = static_cast<int>(floor(base_playhead));
+
+                if(base_n < baseAudioFile.length()-1){
+                    float fract = static_cast<float>(base_playhead - base_n);
+                    float isampleL = baseAudioFile.sample(base_n, 0)*(1.0f-fract) + baseAudioFile.sample(base_n+1, 0)*fract;
+                    float isampleR = baseAudioFile.sample(base_n, 1)*(1.0f-fract) + baseAudioFile.sample(base_n+1, 1)*fract;
+                    outBuffer.getSample(i, 2) = isampleL * base_volume; // CH 3
+                    outBuffer.getSample(i, 3) = isampleR * base_volume; // CH 4
+
+                    base_playhead += base_step;
+
+                }else{
+                    outBuffer.getSample(i, 2) = 0.0f;
+                    outBuffer.getSample(i, 3) = 0.0f;
+                    base_playhead = 0.0;
+                }
+
+                // CAMPANA (Random Channel every time)
+                if(play_campana){
+                    int campana_n = static_cast<int>(floor(campana_playhead));
+
+                    if(campana_n < campana.length()-1){
+                        float cfract = static_cast<float>(campana_playhead - campana_n);
+                        float csample = campana.sample(campana_n, 0)*(1.0f-cfract) + campana.sample(campana_n+1, 0)*cfract;
+                        outBuffer.getSample(i, randomCHCamapana) = csample; // CH 3
+
+                        campana_playhead += campana_step;
+
+                    }else{
+                        play_campana = false;
+                        outBuffer.getSample(i, randomCHCamapana) = 0.0f;
+                    }
+
+                }
+
+                // Quad Audio
+                /*outBuffer.getSample(i, 0) = 0; // CH 1
+                outBuffer.getSample(i, 1) = 0; // CH 2
+                outBuffer.getSample(i, 2) = 0; // CH 3
+                outBuffer.getSample(i, 3) = 0; // CH 4*/
+            }
+
+        }
+
+        unique_lock<mutex> lock(audioMutex);
+        lastBuffer = outBuffer;
+        outBuffer.getChannel(monoBuffer,2);
+    }else{
+        lastBuffer *= 0.0;
+        monoBuffer *= 0.0;
+    }
 }
 
 //--------------------------------------------------------------
@@ -289,6 +429,8 @@ void ofApp::motionDetection(){
                 // we have movement, reset the sleep countdown
                 resetTime = ofGetElapsedTimeMillis();
                 isSystemSleeping = false;
+                mainVideo->play();
+                base_playhead = 0.0;
             }
 
         }
@@ -327,8 +469,9 @@ void ofApp::serialRead(){
 
 //--------------------------------------------------------------
 void ofApp::sleepCountdown(){
-    if(ofGetElapsedTimeMillis()-resetTime > waitTime && !isSystemSleeping){
+    if(ofGetElapsedTimeMillis()-resetTime > waitTime && mainVideo->getPosition()>0.99 && !isSystemSleeping){
         isSystemSleeping = true;
+        mainVideo->stop();
     }
 }
 
@@ -338,6 +481,8 @@ void ofApp::keyPressed(int key){
         mainWindow->toggleFullscreen();
     }else if(key == 'g'){
         drawGui = !drawGui;
+    }else if(key == 'c'){
+        playRandomCampana();
     }
 
     warpManager->onKeyPressed(key);
@@ -383,11 +528,23 @@ void ofApp::dragEvent(ofDragInfo dragInfo){
 
 //--------------------------------------------------------------
 void ofApp::updateMovingWindow(ofEventArgs &e){
-
+    if(displacementX < 0){
+        actualQuadrant = 0; // outside left
+    }else if(displacementX >= 0 && displacementX < 1280){
+        actualQuadrant = 1; // q1
+    }else if(displacementX >= 1280 && displacementX < 2560){
+        actualQuadrant = 2; // q2
+    }else if(displacementX >= 2560 && displacementX < 3840){
+        actualQuadrant = 3; // q3
+    }else if(displacementX >= 3840){
+        actualQuadrant = 4; // outside right
+    }
 }
 
 //--------------------------------------------------------------
 void ofApp::drawMovingWindow(ofEventArgs &e){
+
+    unique_lock<mutex> lock(audioMutex);
 
     if(ofGetElapsedTimeMillis() - waitTimeForFullscreen > 1000 && !isSecondaryWinLoaded){
         isSecondaryWinLoaded = true;
@@ -410,16 +567,16 @@ void ofApp::drawMovingWindow(ofEventArgs &e){
     ofSetColor(255,255);
     switch (generativeState) {
     case 0:
-
+        // void
         break;
     case 1: // numeros
-
+        drawNumeros();
         break;
     case 2: // palabras
-
+        drawPalabras();
         break;
     case 3: // cuadrados (sound buffer)
-
+        drawCuadrados();
         break;
     default:
         break;
@@ -446,6 +603,25 @@ void ofApp::drawMovingWindow(ofEventArgs &e){
 
     movingWarpManager->getWarp(0)->draw(finalMovingFbo->getTexture());
 
+}
+
+//--------------------------------------------------------------
+void ofApp::drawNumeros(){
+    if(soundStreamInited){
+
+    }
+}
+
+//--------------------------------------------------------------
+void ofApp::drawPalabras(){
+
+}
+
+//--------------------------------------------------------------
+void ofApp::drawCuadrados(){
+    if(soundStreamInited){
+
+    }
 }
 
 //--------------------------------------------------------------
