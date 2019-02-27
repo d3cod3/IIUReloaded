@@ -562,25 +562,30 @@ void ofApp::drawMovingWindow(ofEventArgs &e){
     movingFBO->end();
 
     glitchedFBO->begin();
-    ofSetColor(255,120);
-    fboGlitch->draw(*movingFBO,0,0,SECONDARY_SCREEN_W, SECONDARY_SCREEN_H);
-    ofSetColor(255,255);
-    switch (generativeState) {
-    case 0:
-        // void
-        break;
-    case 1: // numeros
-        drawNumeros();
-        break;
-    case 2: // palabras
-        drawPalabras();
-        break;
-    case 3: // cuadrados (sound buffer)
-        drawCuadrados();
-        break;
-    default:
-        break;
+    if(!isSystemSleeping){
+        ofSetColor(255,120);
+        fboGlitch->draw(*movingFBO,0,0,SECONDARY_SCREEN_W, SECONDARY_SCREEN_H);
+        ofSetColor(255,255);
+        switch (generativeState) {
+        case 0:
+            // void
+            break;
+        case 1: // numeros
+            drawNumeros();
+            break;
+        case 2: // palabras
+            drawPalabras();
+            break;
+        case 3: // cuadrados (sound buffer)
+            drawCuadrados();
+            break;
+        default:
+            break;
+        }
+    }else{
+        ofClear(0);
     }
+
     glitchedFBO->end();
 
     finalMovingFbo->begin();
