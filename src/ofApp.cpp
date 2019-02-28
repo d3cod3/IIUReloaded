@@ -44,14 +44,13 @@ void ofApp::setup(){
     desaturate          = new ofShader();
     fboGlitch           = new ofxEasyFboGlitch();
     movingWarpManager   = new ofxWarpController();
-    font                = new ofxTrueTypeFontUC();
+
 
     movingFBO->allocate(SECONDARY_SCREEN_W, SECONDARY_SCREEN_H,GL_RGBA,2);
     glitchedFBO->allocate(SECONDARY_SCREEN_W, SECONDARY_SCREEN_H,GL_RGBA,2);
     finalMovingFbo->allocate(SECONDARY_SCREEN_W, SECONDARY_SCREEN_H,GL_RGBA,2);
     fboGlitch->allocate(SECONDARY_SCREEN_W, SECONDARY_SCREEN_H);
     desaturate->load("videos/movingProjectionShader");
-    font->load("videos/IBMPlexSans-Text.otf",64,true,true);
     movingBounds            = ofRectangle(0,0,SECONDARY_SCREEN_W, SECONDARY_SCREEN_H);
     waitTimeForFullscreen   = ofGetElapsedTimeMillis();
     isSecondaryFullscreen   = false;
@@ -70,7 +69,7 @@ void ofApp::setup(){
 
     mainVideo->load("videos/videoMatrox.mov");
     mainVideo->setLoopState(OF_LOOP_NORMAL);
-    mainVideo->play();
+    mainVideo->stop();
 
     rgb->load("videos/rgb.jpg");
     finalTexture->allocate(MAIN_SCREEN_W,MAIN_SCREEN_H,GL_RGBA,2);
@@ -87,36 +86,72 @@ void ofApp::setup(){
     movingWarpManager->loadSettings("videos/movingWarpingSetting.json");
 
     // ---------------------------------------------- AUDIO
-    soundStreamInited = false;
-    soundStream.printDeviceList();
     int audioDeviceID = 0;
-    /*ofSoundStreamSettings audioSettings;
-    audioSettings.numOutputChannels = AUDIO_NUM_OUT_CHANNELS;
-    audioSettings.sampleRate = AUDIO_SAMPLE_RATE;
-    audioSettings.bufferSize = AUDIO_BUFFER_SIZE;
-    audioSettings.numBuffers = AUDIO_NUM_BUFFER;
-    audioSettings.setOutDevice(soundStream.getDeviceList().at(audioDeviceID));
-    audioSettings.setOutListener(this);
-    soundStream.setup(audioSettings);*/
+    engine = new pdsp::Engine();
+    engine->setChannels(AUDIO_NUM_IN_CHANNELS,AUDIO_NUM_OUT_CHANNELS);
+    this->setChannels(AUDIO_NUM_IN_CHANNELS,0);
 
-    //soundStream.setDeviceID(audioDeviceID);
-    //soundStreamInited = soundStream.setup(AUDIO_NUM_OUT_CHANNELS,AUDIO_NUM_IN_CHANNELS,AUDIO_SAMPLE_RATE,AUDIO_BUFFER_SIZE,AUDIO_NUM_BUFFER);
+    for(int in=0;in<AUDIO_NUM_IN_CHANNELS;in++){
+        engine->audio_in(in) >> this->in(in);
+    }
+    this->out_silent() >> engine->blackhole();
 
-    baseAudioFile.load("videos/baseSound.aiff");
-    base_playhead   = std::numeric_limits<int>::max();
-    base_step       = baseAudioFile.samplerate() / AUDIO_SAMPLE_RATE;
-    base_volume     = 1.0f;
-    base_playhead   = 0.0;
+    engine->setOutputDeviceID(audioDeviceID);
+    engine->setInputDeviceID(audioDeviceID);
+    engine->setup(AUDIO_SAMPLE_RATE, AUDIO_BUFFER_SIZE, 3);
 
-    campana.load("videos/campana.aiff");
-    campana_playhead    = std::numeric_limits<int>::max();
-    campana_step        = campana.samplerate() / AUDIO_SAMPLE_RATE;
-    campana_playhead    = 0.0;
-    play_campana        = false;
-    randomCHCamapana    = 0;
+    audioCH1.out_signal() >> engine->audio_out(0);
+    audioCH2.out_signal() >> engine->audio_out(1);
+    audioCH3.out_signal() >> engine->audio_out(2);
+    audioCH4.out_signal() >> engine->audio_out(3);
+
+    audioCH1.out_signal() >> mix;
+    audioCH2.out_signal() >> mix;
+    audioCH3.out_signal() >> mix;
+    audioCH4.out_signal() >> mix;
+
+    mix >> scope >> engine->blackhole();
+
+    audioCH1_file.load(ofToDataPath("videos/sonidoBase.wav"));
+    audioCH2_file.load(ofToDataPath("videos/sonidoBase.wav"));
+    audioCH3_file.load(ofToDataPath("videos/sonidoBase.wav"));
+    audioCH4_file.load(ofToDataPath("videos/sonidoBase.wav"));
+
+    main_playhead = std::numeric_limits<int>::max();
+    main_step = audioCH1_file.samplerate() / AUDIO_SAMPLE_RATE;
+    main_playhead = 0.0;
+
+    short *shortBuffer = new short[AUDIO_BUFFER_SIZE];
+    for (int i = 0; i < AUDIO_BUFFER_SIZE; i++){
+        shortBuffer[i] = 0;
+    }
+    ofSoundBuffer tmpBuffer(shortBuffer,static_cast<size_t>(AUDIO_BUFFER_SIZE),1,static_cast<unsigned int>(AUDIO_SAMPLE_RATE));
+    audioCH1_buffer.clear();
+    audioCH1_buffer = tmpBuffer;
+    audioCH2_buffer.clear();
+    audioCH2_buffer = tmpBuffer;
+    audioCH3_buffer.clear();
+    audioCH3_buffer = tmpBuffer;
+    audioCH4_buffer.clear();
+    audioCH4_buffer = tmpBuffer;
+    campana_buffer.clear();
+    campana_buffer = tmpBuffer;
+
+    emptyBuffer = tmpBuffer;
+
+    campanaFile.load(ofToDataPath("videos/campana.wav"));
+
+    randomCHCamapana        = 0;
+    playCampana             = false;
+    campana_playhead        = std::numeric_limits<int>::max();
+    campana_step            = campanaFile.samplerate() / AUDIO_SAMPLE_RATE;
+    campana_playhead        = 0.0;
 
     // ---------------------------------------------- GENERATIVE
     words = {"facultad", "universidad", "democracia", "Valencia", "reunión", "lucha", "coordinadora", "derecho", "estudiantes", "protesta", "declaración", "gobierno", "organización", "sindical", "delegado", "brigada", "sociales", "policía", "representantes", "compañeras", "tensión", "libertad", "cultura", "reforma", "desarrollo", "trabajador", "intelectual", "becas", "ponencia", "coordinación", "autonomía", "institución", "distritos", "flexibilidad", "asamblea", "delegadas", "activista", "grises", "resistencia", "poesía"};
+
+    font                = new ofxTrueTypeFontUC();
+    font->load("videos/IBMPlexSans-Text.otf",64,true,true);
 
     // ---------------------------------------------- GUI
     drawGui             = false;
@@ -179,10 +214,10 @@ void ofApp::update(){
     // --------------------------------------------------- GENERATIVE
     if(!isSystemSleeping){
         mainVideo->update();
-        ofSoundUpdate();
-        // SYNC main audio WITH main video
-        if(mainVideo->getCurrentFrame()==1){
-            base_playhead = 0.0;
+
+        // Campana trigger
+        if(mainVideo->getCurrentFrame() == 1618 || mainVideo->getCurrentFrame() == 5618 || mainVideo->getCurrentFrame() == 6395 || mainVideo->getCurrentFrame() == 10285 || mainVideo->getCurrentFrame() == 11755 || mainVideo->getCurrentFrame() == 15751){
+            playRandomCampana();
         }
 
         if(actualQuadrant != 0 && actualQuadrant != 4){
@@ -246,6 +281,7 @@ void ofApp::draw(){
     if(!preload){
         preload = true;
         mainWindow->toggleFullscreen();
+        mainVideo->play();
     }
     //-------------------------------------
 
@@ -304,74 +340,82 @@ void ofApp::drawGUI(){
 void ofApp::exit(){
     warpManager->saveSettings("videos/warpingSetting.json");
     movingWarpManager->saveSettings("videos/movingWarpingSetting.json");
+
+    engine->setChannels(0,0);
+    delete engine;
+}
+
+//--------------------------------------------------------------
+void ofApp::audioProcess(float *input, int bufferSize, int nChannels){
+    if(audioCH1_file.loaded() && audioCH2_file.loaded() && audioCH3_file.loaded() && audioCH4_file.loaded()){ //&& mainVideo->isPlaying()
+        // assuming the 4 audio file are exatcly the same length!!!
+        for(size_t i = 0; i < audioCH1_buffer.getNumFrames(); i++) {
+            int n = static_cast<int>(floor(main_playhead));
+
+            if(n < audioCH1_file.length()-1){
+                float fract = static_cast<float>(main_playhead - n);
+                float isample1 = audioCH1_file.sample(n, 0)*(1.0f-fract) + audioCH1_file.sample(n+1, 0)*fract;
+                float isample2 = audioCH2_file.sample(n, 0)*(1.0f-fract) + audioCH2_file.sample(n+1, 0)*fract;
+                float isample3 = audioCH3_file.sample(n, 0)*(1.0f-fract) + audioCH3_file.sample(n+1, 0)*fract;
+                float isample4 = audioCH4_file.sample(n, 0)*(1.0f-fract) + audioCH4_file.sample(n+1, 0)*fract;
+                audioCH1_buffer.getSample(i,0) = isample1;
+                audioCH2_buffer.getSample(i,0) = isample2;
+                audioCH3_buffer.getSample(i,0) = isample3;
+                audioCH4_buffer.getSample(i,0) = isample4;
+
+                main_playhead += main_step;
+
+            }else{
+                main_playhead = 0.0;
+            }
+        }
+
+        if(campanaFile.loaded() && playCampana){
+            for(size_t i = 0; i < campana_buffer.getNumFrames(); i++) {
+                int nc = static_cast<int>(floor(campana_playhead));
+
+                if(nc < campanaFile.length()-1){
+                    float cfract = static_cast<float>(campana_playhead - nc);
+                    float isamplec = campanaFile.sample(nc, 0)*(1.0f-cfract) + campanaFile.sample(nc+1, 0)*cfract;
+                    campana_buffer.getSample(i,0) = isamplec;
+
+                    campana_playhead += campana_step;
+                }else{
+                    playCampana = false;
+                }
+            }
+            campana.copyInput(campana_buffer.getBuffer().data(),campana_buffer.getNumFrames());
+        }else{
+            campana_buffer  = emptyBuffer;
+        }
+
+    }else{
+        audioCH1_buffer = emptyBuffer;
+        audioCH2_buffer = emptyBuffer;
+        audioCH3_buffer = emptyBuffer;
+        audioCH4_buffer = emptyBuffer;
+
+    }
+
+    audioCH1.copyInput(audioCH1_buffer.getBuffer().data(),audioCH1_buffer.getNumFrames());
+    audioCH2.copyInput(audioCH2_buffer.getBuffer().data(),audioCH2_buffer.getNumFrames());
+    audioCH3.copyInput(audioCH3_buffer.getBuffer().data(),audioCH3_buffer.getNumFrames());
+    audioCH4.copyInput(audioCH4_buffer.getBuffer().data(),audioCH4_buffer.getNumFrames());
+
+    unique_lock<mutex> lock(audioMutex);
+
 }
 
 //--------------------------------------------------------------
 void ofApp::playRandomCampana(){
+    randomCHCamapana = static_cast<int>(floor(ofRandom(0,4)));
+
+    campana.disconnectOut();
+
+    campana.out_signal() >> engine->audio_out(randomCHCamapana);
+
     campana_playhead    = 0.0;
-    randomCHCamapana = static_cast<int>(floor(ofRandom(0,3)));
-    play_campana = true;
-}
-
-//--------------------------------------------------------------
-void ofApp::audioOut(ofSoundBuffer &outBuffer){
-    if(soundStreamInited){
-        for(size_t i = 0; i < outBuffer.getNumFrames(); i++) {
-
-            if(baseAudioFile.loaded() && campana.loaded() && !isSystemSleeping && mainVideo->isPlaying()){
-
-                // BASE SOUNDFILE (Channels 3 & 4)
-                int base_n = static_cast<int>(floor(base_playhead));
-
-                if(base_n < baseAudioFile.length()-1){
-                    float fract = static_cast<float>(base_playhead - base_n);
-                    float isampleL = baseAudioFile.sample(base_n, 0)*(1.0f-fract) + baseAudioFile.sample(base_n+1, 0)*fract;
-                    float isampleR = baseAudioFile.sample(base_n, 1)*(1.0f-fract) + baseAudioFile.sample(base_n+1, 1)*fract;
-                    outBuffer.getSample(i, 2) = isampleL * base_volume; // CH 3
-                    outBuffer.getSample(i, 3) = isampleR * base_volume; // CH 4
-
-                    base_playhead += base_step;
-
-                }else{
-                    outBuffer.getSample(i, 2) = 0.0f;
-                    outBuffer.getSample(i, 3) = 0.0f;
-                    base_playhead = 0.0;
-                }
-
-                // CAMPANA (Random Channel every time)
-                if(play_campana){
-                    int campana_n = static_cast<int>(floor(campana_playhead));
-
-                    if(campana_n < campana.length()-1){
-                        float cfract = static_cast<float>(campana_playhead - campana_n);
-                        float csample = campana.sample(campana_n, 0)*(1.0f-cfract) + campana.sample(campana_n+1, 0)*cfract;
-                        outBuffer.getSample(i, randomCHCamapana) = csample; // CH 3
-
-                        campana_playhead += campana_step;
-
-                    }else{
-                        play_campana = false;
-                        outBuffer.getSample(i, randomCHCamapana) = 0.0f;
-                    }
-
-                }
-
-                // Quad Audio
-                /*outBuffer.getSample(i, 0) = 0; // CH 1
-                outBuffer.getSample(i, 1) = 0; // CH 2
-                outBuffer.getSample(i, 2) = 0; // CH 3
-                outBuffer.getSample(i, 3) = 0; // CH 4*/
-            }
-
-        }
-
-        unique_lock<mutex> lock(audioMutex);
-        lastBuffer = outBuffer;
-        outBuffer.getChannel(monoBuffer,2);
-    }else{
-        lastBuffer *= 0.0;
-        monoBuffer *= 0.0;
-    }
+    playCampana         = true;
 }
 
 //--------------------------------------------------------------
@@ -430,7 +474,6 @@ void ofApp::motionDetection(){
                 resetTime = ofGetElapsedTimeMillis();
                 isSystemSleeping = false;
                 mainVideo->play();
-                base_playhead = 0.0;
             }
 
         }
@@ -544,8 +587,6 @@ void ofApp::updateMovingWindow(ofEventArgs &e){
 //--------------------------------------------------------------
 void ofApp::drawMovingWindow(ofEventArgs &e){
 
-    unique_lock<mutex> lock(audioMutex);
-
     if(ofGetElapsedTimeMillis() - waitTimeForFullscreen > 1000 && !isSecondaryWinLoaded){
         isSecondaryWinLoaded = true;
         movingWindow->toggleFullscreen();
@@ -557,31 +598,31 @@ void ofApp::drawMovingWindow(ofEventArgs &e){
 
     movingFBO->begin();
     ofClear(0);
-    ofSetColor(255);
+    ofSetColor(255,120);
     drawTextureCropInsideRect(&finalTexture->getTexture(),-displacementX,0,MAIN_SCREEN_W,MAIN_SCREEN_H,movingBounds,false);
+    ofSetColor(255,255);
+    switch (generativeState) {
+    case 0:
+        // void
+        break;
+    case 1: // numeros
+        drawNumeros();
+        break;
+    case 2: // palabras
+        drawPalabras();
+        break;
+    case 3: // cuadrados (sound buffer)
+        drawCuadrados();
+        break;
+    default:
+        break;
+    }
     movingFBO->end();
 
     glitchedFBO->begin();
     if(!isSystemSleeping){
-        ofSetColor(255,120);
-        fboGlitch->draw(*movingFBO,0,0,SECONDARY_SCREEN_W, SECONDARY_SCREEN_H);
         ofSetColor(255,255);
-        switch (generativeState) {
-        case 0:
-            // void
-            break;
-        case 1: // numeros
-            drawNumeros();
-            break;
-        case 2: // palabras
-            drawPalabras();
-            break;
-        case 3: // cuadrados (sound buffer)
-            drawCuadrados();
-            break;
-        default:
-            break;
-        }
+        fboGlitch->draw(*movingFBO,0,0,SECONDARY_SCREEN_W, SECONDARY_SCREEN_H);
     }else{
         ofClear(0);
     }
@@ -612,8 +653,18 @@ void ofApp::drawMovingWindow(ofEventArgs &e){
 
 //--------------------------------------------------------------
 void ofApp::drawNumeros(){
-    if(soundStreamInited){
+    for(size_t i = 0; i < scope.getBuffer().size(); i++) {
+        if(i%24 == 0){
+            float sample = scope.getBuffer().at(i);
+            float x = ofMap(i, 0, scope.getBuffer().size(), 0, SECONDARY_SCREEN_W);
+            float y = ofMap(hardClip(sample), -1, 1, 0, SECONDARY_SCREEN_H);
 
+            ofPushMatrix();
+            ofTranslate(x,y);
+            ofScale(hardClip(sample));
+            font->drawString(ofToString(sample),0,0);
+            ofPopMatrix();
+        }
     }
 }
 
@@ -624,8 +675,19 @@ void ofApp::drawPalabras(){
 
 //--------------------------------------------------------------
 void ofApp::drawCuadrados(){
-    if(soundStreamInited){
+    int qw = static_cast<int>(floor(SECONDARY_SCREEN_W / 16));
+    int qh = static_cast<int>(floor(SECONDARY_SCREEN_H / 16));
 
+    unique_lock<mutex> lock(audioMutex);
+
+    for(size_t x = 0; x < 16; x++) {
+        for(size_t y = 0; y < 16; y++) {
+            int loc = x + y*16;
+            if(loc<scope.getBuffer().size()){
+                ofSetColor(245,ofMap(hardClip(scope.getBuffer().at(loc)),-1,1,0,200));
+                ofDrawRectangle(x*qw,y*qh,qw,qh);
+            }
+        }
     }
 }
 

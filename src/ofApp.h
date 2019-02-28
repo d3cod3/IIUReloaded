@@ -5,18 +5,18 @@
 #include <pwd.h>
 #include <unistd.h>
 
-#include "ofxAudioFile.h"
 #include "ofxCropTexture.h"
 #include "ofxCv.h"
 #include "ofxOpenCv.h"
 #include "ofxGui.h"
 #include "ofxEasyFboGlitch.h"
+#include "ofxPDSP.h"
 #include "ofxTrueTypeFontUC.h"
 #include "ofxWarp.h"
 
 #include "config.h"
 
-class ofApp : public ofBaseApp{
+class ofApp : public ofBaseApp, pdsp::Wrapper{
 
 public:
     void setup();
@@ -33,8 +33,6 @@ public:
     void mouseDraggedMovingWindow(ofMouseEventArgs &e);
     void mousePressedMovingWindow(ofMouseEventArgs &e);
     void mouseReleasedMovingWindow(ofMouseEventArgs &e);
-
-    void audioOut(ofSoundBuffer &outBuffer);
 
     void initAppDataFolder();
     void motionDetection();
@@ -86,21 +84,37 @@ public:
     ofxWarpController           *warpManager;
 
     // ---------------------------------------------- AUDIO
-    ofSoundStream               soundStream;
-    ofSoundBuffer               lastBuffer;
-    ofSoundBuffer               monoBuffer;
+    pdsp::Engine                *engine;
+    pdsp::PatchNode             mix;
+    pdsp::Scope                 scope;
     std::mutex                  audioMutex;
-    bool                        soundStreamInited;
 
-    ofxAudioFile                baseAudioFile;
-    double                      base_playhead;
-    double                      base_step;
-    float                       base_volume;
-    ofxAudioFile                campana;
+    pdsp::ExternalInput         audioCH1;
+    pdsp::ExternalInput         audioCH2;
+    pdsp::ExternalInput         audioCH3;
+    pdsp::ExternalInput         audioCH4;
+    ofxAudioFile                audioCH1_file;
+    ofxAudioFile                audioCH2_file;
+    ofxAudioFile                audioCH3_file;
+    ofxAudioFile                audioCH4_file;
+    ofSoundBuffer               audioCH1_buffer;
+    ofSoundBuffer               audioCH2_buffer;
+    ofSoundBuffer               audioCH3_buffer;
+    ofSoundBuffer               audioCH4_buffer;
+
+    double                      main_playhead;
+    double                      main_step;
+
+
+    pdsp::ExternalInput         campana;
+    ofxAudioFile                campanaFile;
+    ofSoundBuffer               campana_buffer;
+    ofSoundBuffer               emptyBuffer;
     double                      campana_playhead;
     double                      campana_step;
-    bool                        play_campana;
+
     int                         randomCHCamapana;
+    bool                        playCampana;
 
     // ---------------------------------------------- GENERATIVE
     vector<string>              words;
@@ -135,6 +149,8 @@ public:
     size_t                      readingCounter;
 
 private:
+    void audioProcess(float *input, int bufferSize, int nChannels);
+
     int                         _startImuHeading;
     int                         _imuHeading;
     float                       _motionFactor;
@@ -143,3 +159,11 @@ protected:
     bool                        preload;
 
 };
+
+//--------------------------------------------------------------
+static inline float hardClip(float x){
+    float x1 = fabsf(x + 1.0f);
+    float x2 = fabsf(x - 1.0f);
+
+    return 0.5f * (x1 - x2);
+}

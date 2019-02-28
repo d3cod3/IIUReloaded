@@ -15,9 +15,11 @@ git clone https://github.com/npisanti/ofxAudioFile
 git clone https://github.com/kylemcdonald/ofxCv
 git clone https://github.com/microcosm/ofxEasyFboGlitch
 git clone https://github.com/NickHardeman/ofxFastFboReader
-git clone https://github.com/v3ga/ofxSoundPlayerMultiOutput
+git clone https://github.com/d3cod3/ofxMidi
+git clone https://github.com/npisanti/ofxPDSP
+git clone https://github.com/d3cod3/ofxSIMDFloats
 git clone https://github.com/armadillu/ofxTextureCrop
-git clone https://github.com/hironishihara/ofxTrueTypeFontU
+git clone https://github.com/hironishihara/ofxTrueTypeFontUC
 git clone https://github.com/d3cod3/ofxWarp
 
 ```

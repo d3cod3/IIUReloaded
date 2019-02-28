@@ -19,7 +19,7 @@ Project{
         ]
 
         of.addons: [
-            'ofxAudioFile','ofxCv','ofxEasyFboGlitch','ofxFastFboReader','ofxGui','ofxOpenCv','ofxTextureCrop','ofxTrueTypeFontUC','ofxWarp'
+            'ofxAudioFile','ofxCv','ofxEasyFboGlitch','ofxFastFboReader','ofxGui','ofxOpenCv','ofxMidi','ofxOsc','ofxPDSP','ofxSIMDFloats','ofxTextureCrop','ofxTrueTypeFontUC','ofxWarp'
         ]
 
         // additional flags for the project. the of module sets some
@@ -32,7 +32,7 @@ Project{
         of.linkerFlags: []      // flags passed to the linker
         of.defines: []          // defines are passed as -D to the compiler
         // and can be checked with #ifdef or #if in the code
-        of.frameworks: []       // osx only, additional frameworks to link with the project
+        of.frameworks: ['/System/Library/Frameworks/CoreMIDI.framework']       // osx only, additional frameworks to link with the project
         of.staticLibraries: []  // static libraries
         of.dynamicLibraries: [] // dynamic libraries
 
