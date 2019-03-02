@@ -6,6 +6,40 @@ void ofApp::setup(){
     ofSetFrameRate(FPS);
     ofEnableAntiAliasing();
     initAppDataFolder();
+    ofHideCursor();
+
+    // ---------------------------------------------- Load XML Settings
+    settingsLoaded = false;
+    if(xmlSettings.loadFile("videos/settings.xml")){
+        if (xmlSettings.pushTag("settings")){
+            _audio_device           = static_cast<int>(xmlSettings.getValue("audio_device",0));
+            _sample_rate            = static_cast<int>(xmlSettings.getValue("sample_rate",0));
+            _buffer_size            = static_cast<int>(xmlSettings.getValue("buffer_size",0));
+            _output_channels        = static_cast<int>(xmlSettings.getValue("input_channels",0));
+            _input_channels         = static_cast<int>(xmlSettings.getValue("output_channels",0));
+            ch1_vol                 = static_cast<float>(xmlSettings.getValue("ch1_vol",0.0));
+            ch2_vol                 = static_cast<float>(xmlSettings.getValue("ch2_vol",0.0));
+            ch3_vol                 = static_cast<float>(xmlSettings.getValue("ch3_vol",0.0));
+            ch4_vol                 = static_cast<float>(xmlSettings.getValue("ch4_vol",0.0));
+            campana_vol             = static_cast<float>(xmlSettings.getValue("campana_vol",0.0));
+            voz_vol                 = static_cast<float>(xmlSettings.getValue("voz_vol",0.0));
+            _serial_device          = xmlSettings.getValue("serial_device","");
+            _start_imu_angle        = static_cast<int>(xmlSettings.getValue("start_imu_angle",0));
+            _end_imu_angle          = static_cast<int>(xmlSettings.getValue("end_imu_angle",0));
+            _motion_threshold       = static_cast<float>(xmlSettings.getValue("motion_threshold",0.0));
+            _wait_for_sleep_min     = static_cast<int>(xmlSettings.getValue("wait_for_sleep_min",0));
+            _glitch_bleach          = static_cast<float>(xmlSettings.getValue("glitch_bleach",0.0));
+            _glitch_desaturation    = static_cast<float>(xmlSettings.getValue("glitch_desaturation",0.0));
+
+            settingsLoaded = true;
+        }
+    }
+
+    if(!settingsLoaded){
+        ofLog(OF_LOG_ERROR,"ERROR LOADING SETTINGS FILE!!!");
+        ofExit();
+    }
+
 
     // ---------------------------------------------- MAIN Projection (triple head)
     mainWindow = dynamic_pointer_cast<ofAppGLFWWindow>(ofGetCurrentWindow());
@@ -64,41 +98,59 @@ void ofApp::setup(){
     rgb                     = new ofImage();
     finalTexture            = new ofFbo();
     correctedFinalTexture   = new ofFbo();
+    sectorL                 = new ofFbo();
+    sectorC                 = new ofFbo();
+    sectorR                 = new ofFbo();
     colorCorrection         = new ofShader();
     warpManager             = new ofxWarpController();
 
     mainVideo->load("videos/videoMatrox.mov");
     mainVideo->setLoopState(OF_LOOP_NORMAL);
+    mainVideo->setVolume(voz_vol);
     mainVideo->stop();
 
     rgb->load("videos/rgb.jpg");
     finalTexture->allocate(MAIN_SCREEN_W,MAIN_SCREEN_H,GL_RGBA,2);
     correctedFinalTexture->allocate(MAIN_SCREEN_W,MAIN_SCREEN_H,GL_RGBA,2);
+    sectorL->allocate(SECONDARY_SCREEN_W, SECONDARY_SCREEN_H);
+    sectorC->allocate(SECONDARY_SCREEN_W, SECONDARY_SCREEN_H);
+    sectorR->allocate(SECONDARY_SCREEN_W, SECONDARY_SCREEN_H);
     colorCorrection->load("videos/colorBasic");
 
     warpManager->loadSettings("videos/warpingSetting.json");
-    /*std::shared_ptr<ofxWarpPerspectiveBilinear> warp;
-    warp = warpManager->buildWarp<ofxWarpPerspectiveBilinear>();
-    warp->setSize(MAIN_SCREEN_W,MAIN_SCREEN_H);
-    warp->setEdges(glm::vec4(0.03f, 0.03f, 0.03f, 0.03f));
-    warp->setExponent(1.2f);
-    warp->setNumControlsX(4);*/
+    std::shared_ptr<ofxWarpPerspectiveBilinear> warp1, warp2, warp3;
+    /*warp1 = warpManager->buildWarp<ofxWarpPerspectiveBilinear>();
+    warp1->setSize(MAIN_SCREEN_W,MAIN_SCREEN_H);
+    warp1->setEdges(glm::vec4(0.03f, 0.03f, 0.03f, 0.03f));
+    warp1->setExponent(1.2f);
+
+    warp2 = warpManager->buildWarp<ofxWarpPerspectiveBilinear>();
+    warp2->setSize(MAIN_SCREEN_W,MAIN_SCREEN_H);
+    warp2->setEdges(glm::vec4(0.03f, 0.03f, 0.03f, 0.03f));
+    warp2->setExponent(1.2f);
+
+    warp3 = warpManager->buildWarp<ofxWarpPerspectiveBilinear>();
+    warp3->setSize(MAIN_SCREEN_W,MAIN_SCREEN_H);
+    warp3->setEdges(glm::vec4(0.03f, 0.03f, 0.03f, 0.03f));
+    warp3->setExponent(1.2f);*/
+
+
     movingWarpManager->loadSettings("videos/movingWarpingSetting.json");
 
     // ---------------------------------------------- AUDIO
-    int audioDeviceID = 0;
     engine = new pdsp::Engine();
-    engine->setChannels(AUDIO_NUM_IN_CHANNELS,AUDIO_NUM_OUT_CHANNELS);
-    this->setChannels(AUDIO_NUM_IN_CHANNELS,0);
+    //engine->listDevices();
+    engine->setChannels(_input_channels,_output_channels);
+    this->setChannels(_input_channels,0);
 
-    for(int in=0;in<AUDIO_NUM_IN_CHANNELS;in++){
+    for(int in=0;in<_input_channels;in++){
         engine->audio_in(in) >> this->in(in);
     }
     this->out_silent() >> engine->blackhole();
 
-    engine->setOutputDeviceID(audioDeviceID);
-    engine->setInputDeviceID(audioDeviceID);
-    engine->setup(AUDIO_SAMPLE_RATE, AUDIO_BUFFER_SIZE, 3);
+    engine->setOutputDeviceID(_audio_device);
+    engine->setInputDeviceID(_audio_device);
+    engine->setup(_sample_rate, _buffer_size, 3);
 
     audioCH1.out_signal() >> engine->audio_out(0);
     audioCH2.out_signal() >> engine->audio_out(1);
@@ -112,20 +164,20 @@ void ofApp::setup(){
 
     mix >> scope >> engine->blackhole();
 
-    audioCH1_file.load(ofToDataPath("videos/sonidoBase.wav"));
-    audioCH2_file.load(ofToDataPath("videos/sonidoBase.wav"));
-    audioCH3_file.load(ofToDataPath("videos/sonidoBase.wav"));
-    audioCH4_file.load(ofToDataPath("videos/sonidoBase.wav"));
+    audioCH1_file.load(ofToDataPath("videos/CH1.wav"));
+    audioCH2_file.load(ofToDataPath("videos/CH2.wav"));
+    audioCH3_file.load(ofToDataPath("videos/CH3.wav"));
+    audioCH4_file.load(ofToDataPath("videos/CH4.wav"));
 
     main_playhead = std::numeric_limits<int>::max();
-    main_step = audioCH1_file.samplerate() / AUDIO_SAMPLE_RATE;
+    main_step = audioCH1_file.samplerate() / _sample_rate;
     main_playhead = 0.0;
 
-    short *shortBuffer = new short[AUDIO_BUFFER_SIZE];
-    for (int i = 0; i < AUDIO_BUFFER_SIZE; i++){
+    short *shortBuffer = new short[_buffer_size];
+    for (int i = 0; i < _buffer_size; i++){
         shortBuffer[i] = 0;
     }
-    ofSoundBuffer tmpBuffer(shortBuffer,static_cast<size_t>(AUDIO_BUFFER_SIZE),1,static_cast<unsigned int>(AUDIO_SAMPLE_RATE));
+    ofSoundBuffer tmpBuffer(shortBuffer,static_cast<size_t>(_buffer_size),1,static_cast<unsigned int>(_sample_rate));
     audioCH1_buffer.clear();
     audioCH1_buffer = tmpBuffer;
     audioCH2_buffer.clear();
@@ -141,10 +193,12 @@ void ofApp::setup(){
 
     campanaFile.load(ofToDataPath("videos/campana.wav"));
 
+    campana_vol             = 1.0f;
+
     randomCHCamapana        = 0;
     playCampana             = false;
     campana_playhead        = std::numeric_limits<int>::max();
-    campana_step            = campanaFile.samplerate() / AUDIO_SAMPLE_RATE;
+    campana_step            = campanaFile.samplerate() / _sample_rate;
     campana_playhead        = 0.0;
 
     // ---------------------------------------------- GENERATIVE
@@ -152,6 +206,9 @@ void ofApp::setup(){
 
     font                = new ofxTrueTypeFontUC();
     font->load("videos/IBMPlexSans-Text.otf",64,true,true);
+    resetWordTime       = ofGetElapsedTimeMillis();
+    waitForWord         = static_cast<int>(floor(ofRandom(40,1000)));
+    wordCounter         = 0;
 
     // ---------------------------------------------- GUI
     drawGui             = false;
@@ -185,13 +242,13 @@ void ofApp::setup(){
     motion_noiseCompensation    = 1000;
 
     resetTime                   = ofGetElapsedTimeMillis();
-    waitTime                    = WAIT_FOR_SLEEP_MS;
+    waitTime                    = 1000*60*_wait_for_sleep_min;
     isSystemSleeping            = false;
 
     // ---------------------------------------------- IMU from serial port (arduino)
     serialAttached = false;
     //serial.listDevices();
-    if(serial.setup("/dev/ttyACM0", 9600)){
+    if(serial.setup(_serial_device.c_str(), 9600)){
         serialAttached = true;
     }
 
@@ -212,7 +269,7 @@ void ofApp::setup(){
 void ofApp::update(){
 
     // --------------------------------------------------- GENERATIVE
-    if(!isSystemSleeping){
+    if(!isSystemSleeping && mainVideo->isLoaded()){
         mainVideo->update();
 
         // Campana trigger
@@ -281,7 +338,10 @@ void ofApp::draw(){
     if(!preload){
         preload = true;
         mainWindow->toggleFullscreen();
-        mainVideo->play();
+        if(mainVideo->isLoaded()){
+            mainVideo->setVolume(voz_vol);
+            mainVideo->play();
+        }
     }
     //-------------------------------------
 
@@ -291,11 +351,11 @@ void ofApp::draw(){
     // RELOAD
     finalTexture->begin();
     ofClear(0,0,0,255);
-    if(isSystemSleeping){
-        rgb->draw(0,0,MAIN_SCREEN_W,MAIN_SCREEN_H);
-    }else{
+    if(!isSystemSleeping && !drawGui && mainVideo->isLoaded()){
         ofSetColor(255);
         mainVideo->draw(0,0,MAIN_SCREEN_W,MAIN_SCREEN_H);
+    }else{
+        rgb->draw(0,0,MAIN_SCREEN_W,MAIN_SCREEN_H);
     }
     finalTexture->end();
 
@@ -318,7 +378,21 @@ void ofApp::draw(){
     colorCorrection->end();
     correctedFinalTexture->end();
 
-    warpManager->getWarp(0)->draw(correctedFinalTexture->getTexture());
+    sectorL->begin();
+    drawTextureCropInsideRect(&correctedFinalTexture->getTexture(),0,0,MAIN_SCREEN_W,MAIN_SCREEN_H,movingBounds,false);
+    sectorL->end();
+
+    sectorC->begin();
+    drawTextureCropInsideRect(&correctedFinalTexture->getTexture(),-SECONDARY_SCREEN_W,0,MAIN_SCREEN_W,MAIN_SCREEN_H,movingBounds,false);
+    sectorC->end();
+
+    sectorR->begin();
+    drawTextureCropInsideRect(&correctedFinalTexture->getTexture(),-SECONDARY_SCREEN_W*2,0,MAIN_SCREEN_W,MAIN_SCREEN_H,movingBounds,false);
+    sectorR->end();
+
+    warpManager->getWarp(0)->draw(sectorL->getTexture());
+    warpManager->getWarp(1)->draw(sectorC->getTexture());
+    warpManager->getWarp(2)->draw(sectorR->getTexture());
 
     // GUI
     drawGUI();
@@ -347,7 +421,7 @@ void ofApp::exit(){
 
 //--------------------------------------------------------------
 void ofApp::audioProcess(float *input, int bufferSize, int nChannels){
-    if(audioCH1_file.loaded() && audioCH2_file.loaded() && audioCH3_file.loaded() && audioCH4_file.loaded()){ //&& mainVideo->isPlaying()
+    if(audioCH1_file.loaded() && audioCH2_file.loaded() && audioCH3_file.loaded() && audioCH4_file.loaded() && mainVideo->isLoaded() && mainVideo->isPlaying() && !drawGui){
         // assuming the 4 audio file are exatcly the same length!!!
         for(size_t i = 0; i < audioCH1_buffer.getNumFrames(); i++) {
             int n = static_cast<int>(floor(main_playhead));
@@ -358,10 +432,10 @@ void ofApp::audioProcess(float *input, int bufferSize, int nChannels){
                 float isample2 = audioCH2_file.sample(n, 0)*(1.0f-fract) + audioCH2_file.sample(n+1, 0)*fract;
                 float isample3 = audioCH3_file.sample(n, 0)*(1.0f-fract) + audioCH3_file.sample(n+1, 0)*fract;
                 float isample4 = audioCH4_file.sample(n, 0)*(1.0f-fract) + audioCH4_file.sample(n+1, 0)*fract;
-                audioCH1_buffer.getSample(i,0) = isample1;
-                audioCH2_buffer.getSample(i,0) = isample2;
-                audioCH3_buffer.getSample(i,0) = isample3;
-                audioCH4_buffer.getSample(i,0) = isample4;
+                audioCH1_buffer.getSample(i,0) = isample1 * ch1_vol;
+                audioCH2_buffer.getSample(i,0) = isample2 * ch2_vol;
+                audioCH3_buffer.getSample(i,0) = isample3 * ch3_vol;
+                audioCH4_buffer.getSample(i,0) = isample4 * ch4_vol;
 
                 main_playhead += main_step;
 
@@ -377,7 +451,7 @@ void ofApp::audioProcess(float *input, int bufferSize, int nChannels){
                 if(nc < campanaFile.length()-1){
                     float cfract = static_cast<float>(campana_playhead - nc);
                     float isamplec = campanaFile.sample(nc, 0)*(1.0f-cfract) + campanaFile.sample(nc+1, 0)*cfract;
-                    campana_buffer.getSample(i,0) = isamplec;
+                    campana_buffer.getSample(i,0) = isamplec * campana_vol;
 
                     campana_playhead += campana_step;
                 }else{
@@ -473,7 +547,10 @@ void ofApp::motionDetection(){
                 // we have movement, reset the sleep countdown
                 resetTime = ofGetElapsedTimeMillis();
                 isSystemSleeping = false;
-                mainVideo->play();
+                if(mainVideo->isLoaded()){
+                    mainVideo->setVolume(voz_vol);
+                    mainVideo->play();
+                }
             }
 
         }
@@ -497,6 +574,8 @@ void ofApp::serialRead(){
                     _startImuHeading = _imuHeading;
                 }
 
+                displacementX = ofClamp(ofMap(_imuHeading,_start_imu_angle,_end_imu_angle,-1280,3900),-1280,3900);
+
                 if(readingCounter < 30){
                     readingCounter++;
                 }
@@ -512,9 +591,11 @@ void ofApp::serialRead(){
 
 //--------------------------------------------------------------
 void ofApp::sleepCountdown(){
-    if(ofGetElapsedTimeMillis()-resetTime > waitTime && mainVideo->getPosition()>0.99 && !isSystemSleeping){
-        isSystemSleeping = true;
-        mainVideo->stop();
+    if(mainVideo->isLoaded()){
+        if(ofGetElapsedTimeMillis()-resetTime > waitTime && mainVideo->getPosition()>0.99 && !isSystemSleeping){
+            isSystemSleeping = true;
+            mainVideo->stop();
+        }
     }
 }
 
@@ -524,8 +605,15 @@ void ofApp::keyPressed(int key){
         mainWindow->toggleFullscreen();
     }else if(key == 'g'){
         drawGui = !drawGui;
+        if(drawGui){
+            ofShowCursor();
+        }else{
+            ofHideCursor();
+        }
     }else if(key == 'c'){
         playRandomCampana();
+    }else if(key == 'p'){
+        mainVideo->setPaused(true);
     }
 
     warpManager->onKeyPressed(key);
@@ -539,9 +627,6 @@ void ofApp::keyReleased(int key){
 //--------------------------------------------------------------
 void ofApp::mouseMoved(int x, int y ){
     warpManager->onMouseMoved(x,y);
-
-    // TESTING (waiting for IMU)
-    displacementX = x;
 }
 
 //--------------------------------------------------------------
@@ -598,7 +683,7 @@ void ofApp::drawMovingWindow(ofEventArgs &e){
 
     movingFBO->begin();
     ofClear(0);
-    ofSetColor(255,120);
+    ofSetColor(255,150);
     drawTextureCropInsideRect(&finalTexture->getTexture(),-displacementX,0,MAIN_SCREEN_W,MAIN_SCREEN_H,movingBounds,false);
     ofSetColor(255,255);
     switch (generativeState) {
@@ -614,19 +699,21 @@ void ofApp::drawMovingWindow(ofEventArgs &e){
     case 3: // cuadrados (sound buffer)
         drawCuadrados();
         break;
+    case 4:
+        // void
+        break;
     default:
         break;
     }
     movingFBO->end();
 
     glitchedFBO->begin();
-    if(!isSystemSleeping){
+    if(!isSystemSleeping && !drawGui){
         ofSetColor(255,255);
         fboGlitch->draw(*movingFBO,0,0,SECONDARY_SCREEN_W, SECONDARY_SCREEN_H);
     }else{
         ofClear(0);
     }
-
     glitchedFBO->end();
 
     finalMovingFbo->begin();
@@ -670,7 +757,19 @@ void ofApp::drawNumeros(){
 
 //--------------------------------------------------------------
 void ofApp::drawPalabras(){
+    if(ofGetElapsedTimeMillis() - resetWordTime > waitForWord){
+        resetWordTime           = ofGetElapsedTimeMillis();
+        waitForWord             = static_cast<int>(floor(ofRandom(40,1000)));
 
+        wordCounter = static_cast<int>(floor(ofRandom(0,words.size())));
+        if(wordCounter == words.size()){
+            wordCounter--;
+        }
+    }
+
+    ofSetColor(250);
+    float stringWidth = font->getStringBoundingBox(words.at(wordCounter),SECONDARY_SCREEN_W/2,SECONDARY_SCREEN_H/2).width;
+    font->drawString(words.at(wordCounter),SECONDARY_SCREEN_W/2 - stringWidth/2,SECONDARY_SCREEN_H/2);
 }
 
 //--------------------------------------------------------------
@@ -685,7 +784,7 @@ void ofApp::drawCuadrados(){
             int loc = x + y*16;
             if(loc<scope.getBuffer().size()){
                 ofSetColor(245,ofMap(hardClip(scope.getBuffer().at(loc)),-1,1,0,200));
-                ofDrawRectangle(x*qw,y*qh,qw,qh);
+                ofDrawRectangle(x*qw,y*qh,qw,qh*hardClip(scope.getBuffer().at(loc)));
             }
         }
     }

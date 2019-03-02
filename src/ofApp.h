@@ -12,6 +12,7 @@
 #include "ofxEasyFboGlitch.h"
 #include "ofxPDSP.h"
 #include "ofxTrueTypeFontUC.h"
+#include "ofxXmlSettings.h"
 #include "ofxWarp.h"
 
 #include "config.h"
@@ -80,6 +81,7 @@ public:
     ofImage                     *rgb;
     ofFbo                       *finalTexture;
     ofFbo                       *correctedFinalTexture;
+    ofFbo                       *sectorL, *sectorC, *sectorR;
     ofShader                    *colorCorrection;
     ofxWarpController           *warpManager;
 
@@ -118,6 +120,9 @@ public:
 
     // ---------------------------------------------- GENERATIVE
     vector<string>              words;
+    size_t                      resetWordTime;
+    int                         waitForWord;
+    int                         wordCounter;
 
     // ---------------------------------------------- GUI
     bool                        drawGui;
@@ -156,6 +161,27 @@ private:
     float                       _motionFactor;
 
 protected:
+    ofxXmlSettings              xmlSettings;
+    bool                        settingsLoaded;
+    int                         _audio_device;
+    int                         _sample_rate;
+    int                         _buffer_size;
+    int                         _output_channels;
+    int                         _input_channels;
+    float                       ch1_vol;
+    float                       ch2_vol;
+    float                       ch3_vol;
+    float                       ch4_vol;
+    float                       campana_vol;
+    float                       voz_vol;
+    string                      _serial_device;
+    int                         _start_imu_angle;
+    int                         _end_imu_angle;
+    float                       _motion_threshold;
+    int                         _wait_for_sleep_min;
+    float                       _glitch_bleach;
+    float                       _glitch_desaturation;
+
     bool                        preload;
 
 };

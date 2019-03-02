@@ -19,7 +19,7 @@ Project{
         ]
 
         of.addons: [
-            'ofxAudioFile','ofxCv','ofxEasyFboGlitch','ofxFastFboReader','ofxGui','ofxOpenCv','ofxMidi','ofxOsc','ofxPDSP','ofxSIMDFloats','ofxTextureCrop','ofxTrueTypeFontUC','ofxWarp'
+            'ofxAudioFile','ofxCv','ofxEasyFboGlitch','ofxFastFboReader','ofxGui','ofxOpenCv','ofxMidi','ofxOsc','ofxPDSP','ofxSIMDFloats','ofxTextureCrop','ofxTrueTypeFontUC','ofxXmlSettings','ofxWarp'
         ]
 
         // additional flags for the project. the of module sets some
