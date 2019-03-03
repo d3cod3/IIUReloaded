@@ -179,6 +179,7 @@ protected:
     int                         _end_imu_angle;
     float                       _motion_threshold;
     int                         _wait_for_sleep_min;
+    int                         _glitch_alpha;
     float                       _glitch_bleach;
     float                       _glitch_desaturation;
 

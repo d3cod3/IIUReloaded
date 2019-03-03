@@ -28,6 +28,7 @@ void ofApp::setup(){
             _end_imu_angle          = static_cast<int>(xmlSettings.getValue("end_imu_angle",0));
             _motion_threshold       = static_cast<float>(xmlSettings.getValue("motion_threshold",0.0));
             _wait_for_sleep_min     = static_cast<int>(xmlSettings.getValue("wait_for_sleep_min",0));
+            _glitch_alpha           = static_cast<int>(xmlSettings.getValue("glitch_alpha",0));
             _glitch_bleach          = static_cast<float>(xmlSettings.getValue("glitch_bleach",0.0));
             _glitch_desaturation    = static_cast<float>(xmlSettings.getValue("glitch_desaturation",0.0));
 
@@ -683,7 +684,7 @@ void ofApp::drawMovingWindow(ofEventArgs &e){
 
     movingFBO->begin();
     ofClear(0);
-    ofSetColor(255,150);
+    ofSetColor(255,_glitch_alpha);
     drawTextureCropInsideRect(&finalTexture->getTexture(),-displacementX,0,MAIN_SCREEN_W,MAIN_SCREEN_H,movingBounds,false);
     ofSetColor(255,255);
     switch (generativeState) {
